@@ -16,15 +16,18 @@ function depersp($imageName, $debug = TRUE){
 		}
 
 		$denominator = (($y4 - $y3) * ($x2 - $x1) - ($x4 - $x3) * ($y2 - $y1));
-	/*
+
 		// Lines are parallel
 		if ($denominator === 0) {
+				/*
 				echo "<pre>";
 					print_r("Parallel lines!");
 				echo "<pre>";
-			return false;
+				*/
+			//In this case, return not manageable values
+			return [100000, 100000];
 		}
-	*/
+
 		$ua = (($x4 - $x3) * ($y1 - $y3) - ($y4 - $y3) * ($x1 - $x3)) / $denominator;
 		$ub = (($x2 - $x1) * ($y1 - $y3) - ($y2 - $y1) * ($x1 - $x3)) / $denominator;
 	/*
@@ -42,16 +45,17 @@ function depersp($imageName, $debug = TRUE){
 	}
 
 	if( !file_exists($imageName) ){
-		print_r('non esiste il file!');
+		//print_r('non esiste il file!');
+		return $imageName;
 	}
 
 	exec(dirname( __FILE__ )."/A-discoverEdges.sh $imageName", $output, $retval);
-
+/*
 	echo "<h1>Discover</h1>";
 	echo "<pre>";
 		print_r($output);
 	echo "<pre>";
-
+*/
 
 	$lsCrds = [];
 
@@ -85,12 +89,12 @@ function depersp($imageName, $debug = TRUE){
 		$lineNumber++;
 	}
 
-
+/*
 		echo "<h1>Lines</h1>";
 		echo "<pre>";
 			print_r($lsCrds);
 		echo "<pre>";
-
+*/
 		//We can't find a solution
 	if (count($lsCrds) !== 4) {
 			#echo "<h1>Ah, noooo, error!</h1><p>Cannot find 4 lines...</p>";
