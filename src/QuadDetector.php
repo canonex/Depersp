@@ -31,10 +31,16 @@ final class QuadDetector
     public function __construct(
         /** Longest side, in pixels, of the image analysed. */
         private readonly int $workSize = 800,
-        /** A pixel is ink when darker than this fraction of the local background. */
-        private readonly float $inkRatio = 0.6,
-        /** Dilate ink by this many pixels to close small gaps in the frame. */
-        private readonly int $closeRadius = 1,
+        /**
+         * Detection passes, tried in order until one succeeds: [inkRatio, closeRadius].
+         * inkRatio: a pixel is ink when darker than this fraction of the local
+         * background (higher = accepts fainter lines). closeRadius: ink is dilated
+         * by this many working pixels to close gaps in thin or broken frames.
+         * Later passes only run when the earlier ones fail.
+         *
+         * @var list<array{0:float,1:int}>
+         */
+        private readonly array $passes = [[0.6, 1], [0.7, 3], [0.85, 4]],
         /** Minimum frame area as a fraction of the image area. */
         private readonly float $minAreaRatio = 0.05,
         /** Minimum (region area / fitted quad area); rejects non-rectangular blobs. */
@@ -72,18 +78,42 @@ final class QuadDetector
         $work->clear();
         $bg->clear();
 
+        $error = new DetectionException('No detection pass configured.');
+        foreach ($this->passes as [$ratio, $radius]) {
+            try {
+                $corners = $this->detectPass($gray, $back, $w, $h, (float) $ratio, (int) $radius);
+            } catch (DetectionException $e) {
+                $error = $e;
+                continue;
+            }
+            $sx = $origW / $w;
+            $sy = $origH / $h;
+
+            return array_map(static fn ($p) => [$p[0] * $sx, $p[1] * $sy], $corners);
+        }
+
+        throw $error;
+    }
+
+    /**
+     * One detection attempt on the working image.
+     *
+     * @param list<int> $gray
+     * @param list<int> $back
+     * @return list<array{0:float,1:float}> corners in working-image pixels
+     */
+    private function detectPass(array $gray, array $back, int $w, int $h, float $ratio, int $radius): array
+    {
         $n = $w * $h;
-        $ratio = $this->inkRatio;
         $state = array_fill(0, $n, self::FREE);
         for ($i = 0; $i < $n; $i++) {
             if ($gray[$i] < $back[$i] * $ratio) {
                 $state[$i] = self::INK;
             }
         }
-        unset($gray, $back);
 
-        if ($this->closeRadius > 0) {
-            $state = $this->dilate($state, $w, $h, $this->closeRadius);
+        if ($radius > 0) {
+            $state = $this->dilate($state, $w, $h, $radius);
         }
 
         // 3. Flood the background from every border pixel.
@@ -163,21 +193,19 @@ final class QuadDetector
             throw new DetectionException(sprintf('The enclosed region is not a quadrilateral (fill %.2f).', $fill));
         }
 
-        $refined = $this->refine($quad, $contour, $w, $h);
-
-        $sx = $origW / $w;
-        $sy = $origH / $h;
-
-        return array_map(static fn ($p) => [$p[0] * $sx, $p[1] * $sy], $refined);
+        return $this->refine($quad, $contour, $w, $h, $radius);
     }
 
     /**
      * Fit a line to the contour points lying along each side of the rough
      * quad and intersect neighbouring lines. Falls back to the rough corner
-     * whenever the refinement looks unreliable.
+     * whenever the refinement looks unreliable. Each line is moved outwards by
+     * $offset pixels to undo the shrinking caused by dilating the ink.
      */
-    private function refine(array $quad, array $contour, int $w, int $h): array
+    private function refine(array $quad, array $contour, int $w, int $h, float $offset): array
     {
+        $cx = ($quad[0][0] + $quad[1][0] + $quad[2][0] + $quad[3][0]) / 4;
+        $cy = ($quad[0][1] + $quad[1][1] + $quad[2][1] + $quad[3][1]) / 4;
         $diag = hypot($w, $h);
         $tol = max(3.0, 0.02 * $diag);
         $lines = [];
@@ -210,6 +238,15 @@ final class QuadDetector
             if ($line === null) {
                 return $quad;
             }
+            // Outward normal: pointing away from the quad centre.
+            $nx = -$line[3];
+            $ny = $line[2];
+            if (($line[0] - $cx) * $nx + ($line[1] - $cy) * $ny < 0) {
+                $nx = -$nx;
+                $ny = -$ny;
+            }
+            $line[0] += $nx * $offset;
+            $line[1] += $ny * $offset;
             $lines[$k] = $line;
         }
 

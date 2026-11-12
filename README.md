@@ -47,7 +47,10 @@ try {
 Opzioni del costruttore: `outputWidth`/`outputHeight` (dimensione fissa),
 `maxOutputSide`, `margin` (bordo rifilato, default 1%), `quality`,
 `maxFileBytes`, `maxPixels`, `linearLight`. Il rilevatore si regola con
-`new QuadDetector(workSize, inkRatio, closeRadius, minAreaRatio, minFill)`.
+`new QuadDetector(workSize, passes, minAreaRatio, minFill)`, dove `passes` è
+l'elenco di tentativi `[inkRatio, closeRadius]`, provati in ordine finché uno riesce
+(default `[[0.6, 1], [0.7, 3], [0.85, 4]]`: le passate più tolleranti servono per
+cornici sottili, sbiadite o con piccole interruzioni).
 
 ### Upload su server
 
