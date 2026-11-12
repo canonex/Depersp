@@ -1,6 +1,6 @@
 # Depersp
 
-
+Questo software serve per, dato un input file con una cornice, togliere la prospettiva e regolarizzare l'immagine.
 ![In](0-test.jpeg "Input file")
 
 ![Out](0-test.jpeg-dp.png "Output file")

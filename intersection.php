@@ -1,6 +1,8 @@
 <?php
 
-
+if("a" == "b"){
+	echo "a";
+}
 
 function depersp($imageName, $debug = TRUE){
 
@@ -66,26 +68,26 @@ function depersp($imageName, $debug = TRUE){
 		if (strpos($lvalue, ':') === FALSE){
 
 			if (strpos($lvalue, 'line') !== FALSE){
-			
+
 				$str_arr = explode (" ", $lvalue);
-				
+
 				$line=[];
-				
+
 				$pA=explode (",", $str_arr[1]);
 				$pB=explode (",", $str_arr[2]);
-				
+
 				$line["a"][0] = floatval($pA[0]);
 				$line["a"][1] = floatval($pA[1]);
 				$line["b"][0] = floatval($pB[0]);
 				$line["b"][1] = floatval($pB[1]);
-				
+
 				$line["angle"] = $str_arr[6];
-				
+
 				$lsCrds[] = $line;
-							
+
 			}
 		}
-		
+
 		$lineNumber++;
 	}
 
@@ -95,7 +97,60 @@ function depersp($imageName, $debug = TRUE){
 			print_r($lsCrds);
 		echo "<pre>";
 */
-		//We can't find a solution
+
+echo 'LUNGO Pre';
+  print_r( count($lsCrds) );
+echo '__';
+
+//Apply some tolerange and merge similar lines (similar first point, similar second point and similar angle)
+foreach ($lsCrds as $l => $lcoords) {
+	var_dump($lsCrds[$l]["a"][0]);
+
+	if ( array_key_exists($l, $lsCrds) ) {
+		foreach ($lsCrds as $m => $lcoordss) {
+
+			if ( array_key_exists($m, $lsCrds) ) {
+
+				//Skip self intersection check
+				if ($l !== $m) {
+
+					$startDiffX = abs( $lsCrds[$l]["a"][0] - $lsCrds[$m]["a"][0] );
+					$startDiffY = abs( $lsCrds[$l]["a"][1] - $lsCrds[$m]["a"][1] );
+					$endDiffX = abs( $lsCrds[$l]["b"][0] - $lsCrds[$m]["b"][0] );
+					$endDiffY = abs( $lsCrds[$l]["b"][1] - $lsCrds[$m]["b"][1] );
+					//$angleDiff = abs($lsCrds[$l]["angle"] - $lsCrds[$m]["angle"]);
+
+					//Distance tolerance
+					$dT = 15;
+					//Angle tolerance
+					//$aT = 3;
+
+					if ( $startDiffX <= $dT && $startDiffY <= $dT && $endDiffX <= $dT && $endDiffY <= $dT ) { //  && $angleDiff <= $aT
+						echo '> SIMILAR'.PHP_EOL;
+							echo '>> A'.PHP_EOL;
+						  print_r( $lsCrds[$l] );
+							echo '>> B'.PHP_EOL;
+							print_r( $lsCrds[$m] );
+						echo PHP_EOL.'<';
+						unset($lsCrds[$l]);
+					}
+				}
+
+			}
+		}
+
+	}
+}
+
+echo 'LUNGO POST';
+  print_r( count($lsCrds) );
+echo '__';
+
+
+
+
+
+	//We can't find a solution
 	if (count($lsCrds) !== 4) {
 			#echo "<h1>Ah, noooo, error!</h1><p>Cannot find 4 lines...</p>";
 			#print_r($output);
@@ -114,7 +169,7 @@ function depersp($imageName, $debug = TRUE){
 
 			//Skip self intersection check
 			if ($l !== $m) {
-			
+
 				$comb = [$l, $m];
 				sort($comb); //Do not make difference between 12 and 21
 				$duet = implode( "", $comb ); //A numerical "dittongo"
@@ -122,24 +177,24 @@ function depersp($imageName, $debug = TRUE){
 
 				//Do not compute intesection twice
 				if (! array_key_exists($duet, $points) ) {
-				
-			
+
+
 					$r1 = $lsCrds[$l];
 					$r2 = $lsCrds[$m];
-					
+
 					$int = intersect( $r1["a"][0], $r1["a"][1], $r1["b"][0], $r1["b"][1], $r2["a"][0], $r2["a"][1], $r2["b"][0], $r2["b"][1]);
-					
+
 					if ( $int[0] >= 0 && $int[0] <= 1024 && $int[1] >= 0 && $int[1] <= 1024 ) {
 							$points[$duet] = $int;
 					}
-					  
+
 				}
-			
 
 
-			}	
 
-		}  
+			}
+
+		}
 	}
 
 
@@ -224,3 +279,7 @@ function depersp($imageName, $debug = TRUE){
 }
 
 ?>
+
+
+
+

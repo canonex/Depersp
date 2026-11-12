@@ -32,9 +32,9 @@ magick "$1_mb_border.png" -hough-lines 9x9+150 +write "$1_x4.png" "$1_x.mvg"
 
 cat "$1_x.mvg"
 
-rm "$1_ma_soglia.png"
-rm "$1_mb_alpha.png"
-rm "$1_mb_border.png"
-rm "$1_x4.png"
-rm "$1_x.mvg"
+#rm "$1_ma_soglia.png"
+#rm "$1_mb_alpha.png"
+#rm "$1_mb_border.png"
+#rm "$1_x4.png"
+#rm "$1_x.mvg"
 
