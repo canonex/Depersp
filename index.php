@@ -1,12 +1,17 @@
 <?php
 
-require_once("intersection.php");
+declare(strict_types=1);
 
-//$img = "f999885bf439f7658fa0251e3ff8ee8e_proi.jpeg";
+// Backwards-compatible entry point:  php index.php <image>
+// Prints the rectified file name (<image>-dp.png). See bin/depersp for options.
 
-$editedFileName = depersp($argv[1]);
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
 
-print_r($editedFileName);
+require_once __DIR__ . '/intersection.php';
 
-?>
-
+$out = depersp($argv[1] ?? '');
+echo $out, "\n";
+exit($out === ($argv[1] ?? '') ? 1 : 0);
