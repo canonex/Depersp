@@ -1,0 +1,76 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Depersp\DetectionException;
+use Depersp\InvalidImageException;
+use Depersp\Rectifier;
+
+require __DIR__ . '/../src/autoload.php';
+
+const USAGE = <<<TXT
+Usage: depersp <input> [output] [options]
+
+  output            default: <input>-dp.png  (format from extension: png, jpg, webp)
+  --size=WxH        force output size (e.g. 1024x1024, the legacy behaviour)
+  --max-side=N      longest output side when the size is automatic (default 2048)
+  --margin=F        fraction trimmed on each side (default 0.01)
+  --quality=N       JPEG/WebP quality (default 90)
+  --linear          resample in linear light (slower, marginally smoother)
+  --json            print a JSON report instead of the output path
+
+Exit codes: 0 ok, 1 error, 2 no frame found, 3 invalid input.
+
+TXT;
+
+$opts = [];
+$pos = [];
+foreach (array_slice($argv, 1) as $arg) {
+    if (str_starts_with($arg, '--')) {
+        [$k, $v] = array_pad(explode('=', substr($arg, 2), 2), 2, true);
+        $opts[$k] = $v;
+    } else {
+        $pos[] = $arg;
+    }
+}
+if (isset($opts['help']) || count($pos) < 1 || count($pos) > 2) {
+    fwrite(STDERR, USAGE);
+    exit(isset($opts['help']) ? 0 : 1);
+}
+
+$input = $pos[0];
+$output = $pos[1] ?? $input . '-dp.png';
+$w = $h = null;
+if (isset($opts['size'])) {
+    if (!preg_match('/^(\d+)x(\d+)$/', (string) $opts['size'], $m)) {
+        fwrite(STDERR, "Invalid --size, expected WxH\n");
+        exit(1);
+    }
+    [$w, $h] = [(int) $m[1], (int) $m[2]];
+}
+
+try {
+    $rectifier = new Rectifier(
+        outputWidth: $w,
+        outputHeight: $h,
+        maxOutputSide: (int) ($opts['max-side'] ?? 2048),
+        margin: (float) ($opts['margin'] ?? 0.01),
+        quality: (int) ($opts['quality'] ?? 90),
+        linearLight: isset($opts['linear']),
+    );
+    $result = $rectifier->rectifyFile($input, $output);
+} catch (DetectionException $e) {
+    fwrite(STDERR, 'No frame found: ' . $e->getMessage() . "\n");
+    exit(2);
+} catch (InvalidImageException $e) {
+    fwrite(STDERR, 'Invalid input: ' . $e->getMessage() . "\n");
+    exit(3);
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Error: ' . $e->getMessage() . "\n");
+    exit(1);
+}
+
+echo isset($opts['json'])
+    ? json_encode($result->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n"
+    : $result->outputPath . "\n";
