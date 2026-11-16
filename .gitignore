@@ -1,5 +1,3 @@
-/storage/
-/public/rectified/
 /vendor/
+/composer.lock
 *-dp.png
-!/0-test.jpeg-dp.png

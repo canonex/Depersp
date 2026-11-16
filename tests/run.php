@@ -187,8 +187,8 @@ test('aspect ratio with pure keystone uses the default focal length', function (
 
 // --- Reference image ------------------------------------------------------
 
-test('reference photo 0-test.jpeg is rectified like 0-test.jpeg-dp.png', function () use ($root, $tmp) {
-    $in = $root . '/0-test.jpeg';
+test('reference photo is rectified like the reference output', function () use ($root, $tmp) {
+    $in = $root . '/tests/fixtures/sample.jpeg';
     $hash = sha1_file($in);
     $res = (new Rectifier())->rectifyFile($in, $tmp . '/ref.png');
     check(sha1_file($in) === $hash, 'input file was modified');
@@ -200,7 +200,7 @@ test('reference photo 0-test.jpeg is rectified like 0-test.jpeg-dp.png', functio
 
     // Compare with the reference output after bringing both to the same size.
     $a = new Imagick($tmp . '/ref.png');
-    $b = new Imagick($root . '/0-test.jpeg-dp.png');
+    $b = new Imagick($root . '/tests/fixtures/sample-rectified.png');
     $a->resizeImage(256, 256, Imagick::FILTER_TRIANGLE, 1);
     $b->resizeImage(256, 256, Imagick::FILTER_TRIANGLE, 1);
     [, $rmse] = $a->compareImages($b, Imagick::METRIC_ROOTMEANSQUAREDERROR);
@@ -208,7 +208,7 @@ test('reference photo 0-test.jpeg is rectified like 0-test.jpeg-dp.png', functio
 });
 
 test('fixed output size (legacy 1024x1024 behaviour)', function () use ($root, $tmp) {
-    $res = (new Rectifier(outputWidth: 1024, outputHeight: 1024))->rectifyFile($root . '/0-test.jpeg', $tmp . '/ref1024.jpg');
+    $res = (new Rectifier(outputWidth: 1024, outputHeight: 1024))->rectifyFile($root . '/tests/fixtures/sample.jpeg', $tmp . '/ref1024.jpg');
     $i = new Imagick($tmp . '/ref1024.jpg');
     check($i->getImageWidth() === 1024 && $i->getImageHeight() === 1024, 'size');
     check($i->getImageFormat() === 'JPEG', 'format');
@@ -292,7 +292,7 @@ test('missing file -> InvalidImageException', function () {
 
 test('EXIF orientation is honoured', function () use ($root, $tmp) {
     // Rotate the pixels 90° but tag the file so viewers rotate it back.
-    $img = new Imagick($root . '/0-test.jpeg');
+    $img = new Imagick($root . '/tests/fixtures/sample.jpeg');
     $img->rotateImage('white', -90);
     $img->setImageFormat('jpeg');
     file_put_contents($tmp . '/rotated.jpg', withExifOrientation($img->getImageBlob(), 6)); // 6 = rotate 90° CW to view
@@ -302,7 +302,7 @@ test('EXIF orientation is honoured', function () use ($root, $tmp) {
 });
 
 test('large photo (12 MP) stays within time and memory budget', function () use ($root, $tmp) {
-    $img = new Imagick($root . '/0-test.jpeg');
+    $img = new Imagick($root . '/tests/fixtures/sample.jpeg');
     $img->resizeImage(4000, 3000, Imagick::FILTER_LANCZOS, 1);
     $img->writeImage('jpeg:' . $tmp . '/big.jpg');
     $before = memory_get_peak_usage(true);
@@ -310,6 +310,27 @@ test('large photo (12 MP) stays within time and memory budget', function () use 
     check($res->seconds < 5, sprintf('took %.2fs', $res->seconds));
     check(max($res->width, $res->height) === 2048, 'output capped at 2048');
     check(memory_get_peak_usage(true) - $before < 128 * 1024 * 1024, 'PHP memory');
+});
+
+// --- In-memory API -------------------------------------------------------
+
+test('rectifyBlob works fully in memory (no files created)', function () use ($root) {
+    $dirs = [sys_get_temp_dir(), $root, $root . '/tests/fixtures'];
+    $before = array_map(static fn ($d) => scandir($d), $dirs);
+    $res = (new Rectifier())->rectifyBlob(file_get_contents($root . '/tests/fixtures/sample.jpeg'), 'webp');
+    check($res->outputPath === null && $res->mimeType === 'image/webp', 'result metadata');
+    $img = new Imagick();
+    $img->readImageBlob($res->data);
+    check($img->getImageFormat() === 'WEBP' && $img->getImageWidth() === $res->width, 'decoded output');
+    check(array_map(static fn ($d) => scandir($d), $dirs) === $before, 'a file was created on disk');
+});
+
+test('rectifyBlob refuses bytes that do not match a decoder', function () {
+    // Starts like a PNG but is not one: the forced PNG decoder must reject it.
+    $fake = "\x89PNG\r\n\x1a\n" . str_repeat("\0", 64) . '<svg xmlns="http://www.w3.org/2000/svg"/>';
+    expectException(InvalidImageException::class, fn () => (new Rectifier())->rectifyBlob($fake));
+    expectException(InvalidImageException::class, fn () => (new Rectifier())->rectifyBlob(''));
+    expectException(\InvalidArgumentException::class, fn () => (new Rectifier())->rectifyBlob('x', 'gif'));
 });
 
 printf("\n%d tests, %d failed\n", $count, $failures);

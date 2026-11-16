@@ -9,8 +9,12 @@ use ImagickException;
 use ImagickPixel;
 
 /**
- * Loads an uploaded photo, finds the framed sheet and writes a
- * perspective-corrected ("depersp") copy. The original file is never modified.
+ * Finds the framed sheet in a photo and produces a perspective-corrected copy.
+ *
+ * Two entry points:
+ *  - rectifyBlob(): bytes in, bytes out, nothing written to disk (recommended
+ *    for uploads: the photo never needs to be stored);
+ *  - rectifyFile(): file in, file out. The input file is never modified.
  */
 final class Rectifier
 {
@@ -23,6 +27,8 @@ final class Rectifier
     ];
 
     private const OUTPUT_FORMATS = ['png' => 'PNG', 'jpg' => 'JPEG', 'jpeg' => 'JPEG', 'webp' => 'WEBP'];
+
+    private const MIME_TYPES = ['PNG' => 'image/png', 'JPEG' => 'image/jpeg', 'WEBP' => 'image/webp'];
 
     private readonly QuadDetector $detector;
 
@@ -50,6 +56,24 @@ final class Rectifier
     }
 
     /**
+     * Rectify an image held in memory and return the encoded result in
+     * Result::$data. No file is created: suitable when uploads must not be stored.
+     *
+     * @param string $format output format: jpg/jpeg, png or webp
+     *
+     * @throws InvalidImageException when the input cannot be used
+     * @throws DetectionException    when no frame is found
+     */
+    public function rectifyBlob(string $bytes, string $format = 'jpg'): Result
+    {
+        $start = microtime(true);
+        $coder = self::outputCoder($format);
+        $image = $this->loadBlob($bytes);
+
+        return $this->encode($image, $coder, null, $start);
+    }
+
+    /**
      * Rectify $inputPath and write the result to $outputPath (format taken from
      * its extension: png, jpg/jpeg or webp). The file is written atomically.
      *
@@ -59,39 +83,64 @@ final class Rectifier
     public function rectifyFile(string $inputPath, string $outputPath): Result
     {
         $start = microtime(true);
-        $format = self::OUTPUT_FORMATS[strtolower(pathinfo($outputPath, PATHINFO_EXTENSION))] ?? null;
-        if ($format === null) {
-            throw new \InvalidArgumentException('Output must end in .png, .jpg, .jpeg or .webp');
-        }
-
+        $coder = self::outputCoder(pathinfo($outputPath, PATHINFO_EXTENSION));
         $image = $this->load($inputPath);
+
+        return $this->encode($image, $coder, $outputPath, $start);
+    }
+
+    private static function outputCoder(string $format): string
+    {
+        return self::OUTPUT_FORMATS[strtolower($format)]
+            ?? throw new \InvalidArgumentException('Output format must be png, jpg, jpeg or webp');
+    }
+
+    /** Rectify $image (consumed) and encode it to $outputPath, or to memory when null. */
+    private function encode(Imagick $image, string $coder, ?string $outputPath, float $start): Result
+    {
         try {
             [$out, $corners] = $this->rectify($image);
         } finally {
             $image->clear();
         }
 
+        $tmp = null;
         try {
-            $out->setImageFormat($format);
-            if ($format !== 'PNG') {
+            // Both are needed: the wand format forced by loadBlob() would
+            // otherwise win over the image format in getImageBlob().
+            $out->setFormat($coder);
+            $out->setImageFormat($coder);
+            if ($coder !== 'PNG') {
                 $out->setImageCompressionQuality($this->quality);
             }
-            $tmp = $outputPath . '.' . bin2hex(random_bytes(4)) . '.tmp';
-            if (!$out->writeImage($format . ':' . $tmp) || !rename($tmp, $outputPath)) {
-                @unlink($tmp);
-                throw new DeperspException('Cannot write ' . $outputPath);
+            $data = null;
+            if ($outputPath === null) {
+                $data = $out->getImageBlob();
+            } else {
+                $tmp = $outputPath . '.' . bin2hex(random_bytes(4)) . '.tmp';
+                if (!$out->writeImage($coder . ':' . $tmp) || !rename($tmp, $outputPath)) {
+                    throw new DeperspException('Cannot write ' . $outputPath);
+                }
+                $tmp = null;
             }
-            $result = new Result($outputPath, $corners, $out->getImageWidth(), $out->getImageHeight(), microtime(true) - $start);
+
+            return new Result(
+                $outputPath,
+                $corners,
+                $out->getImageWidth(),
+                $out->getImageHeight(),
+                microtime(true) - $start,
+                self::MIME_TYPES[$coder],
+                $data,
+            );
         } catch (ImagickException $e) {
-            if (isset($tmp)) {
+            throw new DeperspException('Cannot encode the result: ' . $e->getMessage(), 0, $e);
+        } finally {
+            if ($tmp !== null) {
                 @unlink($tmp);
             }
-            throw new DeperspException('Cannot write ' . $outputPath . ': ' . $e->getMessage(), 0, $e);
-        } finally {
             $out->clear();
         }
-
-        return $result;
     }
 
     /**
@@ -160,15 +209,34 @@ final class Rectifier
         if ($size === false || $size === 0 || $size > $this->maxFileBytes) {
             throw new InvalidImageException('File is empty or too large.');
         }
-        $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($path);
+        $bytes = file_get_contents($path);
+        if ($bytes === false) {
+            throw new InvalidImageException('File not readable.');
+        }
+
+        return $this->loadBlob($bytes);
+    }
+
+    /** Validate and decode an image held in memory. */
+    public function loadBlob(string $bytes): Imagick
+    {
+        $size = strlen($bytes);
+        if ($size === 0 || $size > $this->maxFileBytes) {
+            throw new InvalidImageException('Image is empty or too large.');
+        }
+        // MIME sniffed from the content, never from a file name or client header.
+        $mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($bytes);
         $coder = self::ALLOWED[$mime] ?? null;
         if ($coder === null) {
             throw new InvalidImageException('Unsupported file type: ' . $mime);
         }
 
         try {
+            // setFormat() forces the decoder: the bytes can never be
+            // interpreted as SVG/MVG/PS/... whatever they contain.
             $probe = new Imagick();
-            $probe->pingImage($coder . ':' . $path);
+            $probe->setFormat($coder);
+            $probe->pingImageBlob($bytes);
             $pixels = $probe->getImageWidth() * $probe->getImageHeight();
             $probe->clear();
             if ($pixels <= 0 || $pixels > $this->maxPixels) {
@@ -176,7 +244,8 @@ final class Rectifier
             }
 
             $img = new Imagick();
-            $img->readImage($coder . ':' . $path);
+            $img->setFormat($coder);
+            $img->readImageBlob($bytes);
             if ($img->getNumberImages() > 1) {
                 $img->setIteratorIndex(0);
                 $first = $img->getImage();
