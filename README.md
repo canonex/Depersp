@@ -172,6 +172,13 @@ In produzione impostate in `php.ini` `upload_max_filesize = 16M`,
 `post_max_size = 16M` e `memory_limit = 256M`. Ne bastano meno di 64 MB, ma il
 margine serve con foto molto grandi.
 
+## WordPress
+
+[wordpress/](wordpress/) contiene un plugin che raddrizza i caricamenti scelti
+(tramite casella, form o regole vostre) e salva in `uploads` solo l'immagine
+corretta. Lo zip installabile si crea con `php wordpress/build.php`; le
+istruzioni sono in [wordpress/README.md](wordpress/README.md).
+
 ## Come funziona
 
 1. **Lettura sicura.** Il tipo dell'immagine si ricava dal contenuto (mai dal

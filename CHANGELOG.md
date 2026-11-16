@@ -11,5 +11,8 @@
 - Hardened input handling: content-sniffed MIME, forced decoder, size and
   pixel limits, ImageMagick resource limits; EXIF stripped from the output.
 - `bin/depersp` command line tool.
+- WordPress plugin (`wordpress/`): rectifies selected uploads before they are
+  stored in `uploads` (checkbox, form field, `depersp_media_handle_upload()`,
+  `depersp_should_process` filter); `php wordpress/build.php` builds the zip.
 - Removed: `A-discoverEdges.sh`, `B-undistort.sh`, `index.php`,
   `intersection.php` (legacy `depersp()` function).
