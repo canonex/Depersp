@@ -1,0 +1,40 @@
+name: Release
+
+# Push a tag like v1.2.0 to publish a GitHub Release with the WordPress
+# plugin zip attached. The tag must match the plugin version (checked).
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ImageMagick with WebP support
+        run: sudo apt-get update && sudo apt-get install -y libmagickwand-dev libmagickcore-6.q16-7-extra
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: imagick, fileinfo, zip
+          coverage: none
+
+      - name: Test suite
+        run: php -d memory_limit=512M tests/run.php
+
+      - name: Build plugin zip (fails if the tag and the plugin version differ)
+        run: php wordpress/build.php --expect="$GITHUB_REF_NAME"
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/depersp-wp-*.zip \
+            --title "Depersp $GITHUB_REF_NAME" \
+            --generate-notes \
+            --notes "**Plugin WordPress:** scaricate \`depersp-wp-${GITHUB_REF_NAME#v}.zip\` qui sotto e caricatelo in *Plugin › Aggiungi nuovo › Carica plugin*. Richiede PHP 8.1+ con l'estensione Imagick."

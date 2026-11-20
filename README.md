@@ -23,7 +23,7 @@ repository git:
 
 ```json
 {
-    "repositories": [{ "type": "vcs", "url": "https://github.com/<utente>/depersp" }],
+    "repositories": [{ "type": "vcs", "url": "https://github.com/canonex/Depersp" }],
     "require": { "crickyx/depersp": "^1.0" }
 }
 ```
@@ -174,6 +174,8 @@ margine serve con foto molto grandi.
 
 ## WordPress
 
+Lo zip pronto del plugin si scarica dalle
+[Release su GitHub](https://github.com/canonex/Depersp/releases).
 [wordpress/](wordpress/) contiene un plugin che raddrizza i caricamenti scelti
 (tramite casella, form o regole vostre) e salva in `uploads` solo l'immagine
 corretta. Lo zip installabile si crea con `php wordpress/build.php`; le
@@ -232,6 +234,43 @@ La suite comprende 22 test e non ha dipendenze:
 | 4000×3000 (12 MP) | ~1,5 s |
 
 La memoria usata da PHP resta sotto i 30 MB.
+
+## Rilasci
+
+Ogni tag `vX.Y.Z` pubblicato su GitHub avvia il workflow
+[Release](.github/workflows/release.yml), che:
+1. lancia i test;
+2. costruisce lo zip del plugin WordPress;
+3. crea la Release con lo zip allegato e le note generate dai commit.
+
+Lo stesso tag è anche la versione della libreria per Composer/Packagist. A ogni
+push su `main` il workflow [Tests](.github/workflows/tests.yml) prova la suite
+con PHP 8.1, 8.3 e 8.4.
+
+Per pubblicare una nuova versione, per esempio la 1.2.0:
+
+1. aggiornate la versione nei tre punti del plugin: l'intestazione `Version:`
+   e la costante `VERSION` in `wordpress/depersp/depersp.php`, e `Stable tag:`
+   in `wordpress/depersp/readme.txt`;
+2. aggiornate `CHANGELOG.md` e fate il commit;
+3. pubblicate il commit e il tag:
+
+```bash
+git push origin main
+```
+
+```bash
+git tag -a v1.2.0 -m "Depersp 1.2.0"
+```
+
+```bash
+git push origin v1.2.0
+```
+
+Se il tag non corrisponde alla versione del plugin, il workflow si ferma
+prima di pubblicare. Per verificarlo in locale:
+`php wordpress/build.php --expect=v1.2.0`. Lo stato dei workflow si segue nella
+scheda **Actions** del repository.
 
 ## Licenza
 

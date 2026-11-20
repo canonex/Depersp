@@ -22,6 +22,10 @@ genera le miniature.
 
 Serve l'estensione PHP **Imagick** sul server.
 
+Lo zip pronto si scarica dalle
+[Release su GitHub](https://github.com/canonex/Depersp/releases), oppure si
+costruisce in locale:
+
 ```bash
 php wordpress/build.php        # crea dist/depersp-wp-1.1.0.zip
 ```

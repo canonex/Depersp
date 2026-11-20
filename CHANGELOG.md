@@ -1,6 +1,9 @@
 # Changelog
 
-## 1.0.0 – unreleased
+## 1.1.0 – unreleased
+
+First public release (library and WordPress plugin share the version).
+
 
 - Rewritten as a PHP library (`Depersp\Rectifier`, `Depersp\QuadDetector`):
   pure PHP + Imagick, no shell scripts, no `exec()`.
@@ -14,6 +17,8 @@
 - WordPress plugin (`wordpress/`): rectifies selected uploads before they are
   stored in `uploads` (checkbox, form field, `depersp_media_handle_upload()`,
   `depersp_should_process` filter); `php wordpress/build.php` builds the zip.
+- GitHub Actions: tests on every push; pushing a `v*` tag publishes a GitHub
+  Release with the plugin zip attached.
 - WordPress plugin 1.1.0: the uploader checkbox is now a per-user preference
   that works in every uploader (it had no effect in the Media Library and
   "Add media" window, and its inline script broke the uploader template);
