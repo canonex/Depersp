@@ -22,7 +22,7 @@ if ($zip->open($zipPath, ZipArchive::CREATE) !== true) {
     fwrite(STDERR, "Cannot create $zipPath\n");
     exit(1);
 }
-foreach (['depersp.php', 'readme.txt'] as $f) {
+foreach (['depersp.php', 'readme.txt', 'assets/admin.js'] as $f) {
     $zip->addFile("$plugin/$f", "depersp/$f");
 }
 $zip->addFile("$root/LICENSE", 'depersp/LICENSE');

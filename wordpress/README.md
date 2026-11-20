@@ -23,7 +23,7 @@ genera le miniature.
 Serve l'estensione PHP **Imagick** sul server.
 
 ```bash
-php wordpress/build.php        # crea dist/depersp-wp-1.0.0.zip
+php wordpress/build.php        # crea dist/depersp-wp-1.1.0.zip
 ```
 
 In WordPress andate in *Plugin › Aggiungi nuovo › Carica plugin*, scegliete lo
@@ -40,7 +40,7 @@ invariati.
 
 | Modo | Uso |
 |---|---|
-| Casella in *Media › Aggiungi nuovo* | spuntate "Raddrizza le foto" prima di caricare |
+| Casella "Raddrizza le foto" | compare in ogni uploader: *Media › Aggiungi nuovo*, Libreria media, finestra "Aggiungi media". È una **preferenza dell'utente** salvata sul server: finché resta spuntata vale per tutti i suoi caricamenti, anche dall'editor a blocchi |
 | Campo `depersp=1` nella richiesta | in qualsiasi form vostro che usi le funzioni di upload di WordPress |
 | `depersp_media_handle_upload('campo')` | come `media_handle_upload()`, ma raddrizza sempre |
 | Filtro `depersp_should_process` | qualsiasi regola vostra (vedi sotto) |
@@ -76,9 +76,8 @@ add_filter('depersp_should_process', fn ($process) =>
     $process || current_user_can('studente'));
 ```
 
-L'editor a blocchi e la finestra "Aggiungi media" caricano tramite REST API o
-`async-upload.php` senza la casella: per quei caricamenti usate una regola come
-quelle sopra.
+La casella vale per l'utente che la spunta. Per raddrizzare i caricamenti di
+tutti gli utenti, o in base al contesto, usate una regola come quelle sopra.
 
 ## Altri filtri e azioni
 
@@ -99,6 +98,42 @@ add_filter('depersp_output_format', fn () => 'webp');
 add_filter('depersp_rectifier', fn () => new Depersp\Rectifier(outputWidth: 1240, outputHeight: 1754));
 ```
 
+## Log e diagnostica
+
+I log si attivano solo in modalità debug. In `wp-config.php`:
+
+```php
+define('WP_DEBUG', true);
+define('WP_DEBUG_LOG', true);      // scrive in wp-content/debug.log
+define('WP_DEBUG_DISPLAY', false); // non mostra errori ai visitatori
+```
+
+Se volete solo i log di Depersp, senza attivare il debug di tutto WordPress:
+`define('DEPERSP_DEBUG', true);`
+
+Con i log spenti il plugin non registra nulla.
+
+Le righe iniziano con `[Depersp]` e compaiono anche, le ultime 100, in
+**Strumenti › Depersp**. In quella pagina trovate anche:
+- l'ambiente: versioni di PHP, Imagick e ImageMagick, formati supportati, posizione della libreria, la vostra preferenza;
+- il pulsante **Esegui autotest**, che raddrizza una foto generata in memoria e serve a capire subito se il server è in grado di farlo.
+
+| Riga di log | Significato e soluzione |
+|---|---|
+| `Skipped: not requested (…)` | nessuno ha chiesto di raddrizzare questo caricamento: spuntate la casella oppure aggiungete una regola `depersp_should_process` |
+| `Skipped: file type … is not JPEG/PNG/WebP` | il formato non è supportato, per esempio HEIC dagli iPhone |
+| `Processing (…)` seguito da `Rectified {…}` | tutto a posto; `saved_as` è il nome con cui il file viene salvato |
+| `FAILED: …DetectionException: No closed frame…` con `keep` | cornice non trovata: la foto viene caricata così com'è. Controllate che la cornice sia chiusa e che tutti e quattro gli angoli siano nella foto |
+| `FAILED: …InvalidImageException…` | immagine illeggibile o troppo grande (`maxPixels`, `maxFileBytes`) |
+| `FAILED: ImagickException …` / `…not authorized…` | ImageMagick blocca qualcosa, di solito la `policy.xml` del server. L'autotest lo conferma |
+| `Plugin inactive: …` | manca l'estensione Imagick nel PHP del web server, oppure manca la cartella `lib/` |
+
+Se il log non riporta **nessuna** riga `[Depersp]` durante un caricamento, il
+plugin non è attivo oppure quel caricamento non passa dalle funzioni di upload
+di WordPress. Succede per esempio con alcuni plugin di form, che salvano i file
+per conto loro: in quel caso usate `depersp_media_handle_upload()` o
+`Rectifier::rectifyBlob()` direttamente.
+
 ## Note
 
 - Il lato massimo predefinito è 2560 px, la stessa soglia oltre la quale
@@ -106,12 +141,8 @@ add_filter('depersp_rectifier', fn () => new Depersp\Rectifier(outputWidth: 1240
 - Il tempo di elaborazione (0,3–1,5 s per foto) si aggiunge alla richiesta di
   upload.
 - Provato su WordPress 7.1.4 / PHP 8.4:
-  - caricamento da *Media › Aggiungi nuovo* con l'uploader multi-file;
-  - form pubblico con lo shortcode, sia con la foto raddrizzata sia con il
-    rifiuto di una foto senza cornice;
-  - caricamenti via codice (sideload): senza flag, con flag, uscita WebP,
-    `keep`, `reject` e regola personalizzata.
-
-  Non ho provato l'"uploader del browser", cioè il form classico di
-  *Media › Aggiungi nuovo*: la casella fa parte dello stesso form, quindi
-  dovrebbe funzionare senza modifiche.
+  - *Media › Aggiungi nuovo*, Libreria media ed editor a blocchi (REST API);
+  - form pubblico con lo shortcode;
+  - caricamenti via codice (sideload);
+  - foto senza cornice (`keep` e `reject`), casella tolta, log spenti,
+    libreria mancante, autotest.
