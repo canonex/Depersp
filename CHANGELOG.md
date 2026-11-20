@@ -14,5 +14,10 @@
 - WordPress plugin (`wordpress/`): rectifies selected uploads before they are
   stored in `uploads` (checkbox, form field, `depersp_media_handle_upload()`,
   `depersp_should_process` filter); `php wordpress/build.php` builds the zip.
+- WordPress plugin 1.1.0: the uploader checkbox is now a per-user preference
+  that works in every uploader (it had no effect in the Media Library and
+  "Add media" window, and its inline script broke the uploader template);
+  debug log with WP_DEBUG / DEPERSP_DEBUG; Tools > Depersp diagnostics page
+  with a self-test.
 - Removed: `A-discoverEdges.sh`, `B-undistort.sh`, `index.php`,
   `intersection.php` (legacy `depersp()` function).
