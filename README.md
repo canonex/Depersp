@@ -1,4 +1,4 @@
-# Depersp
+# ![Depersp](Depersp.svg) Depersp
 
 Libreria PHP che raddrizza automaticamente la foto di un foglio con una
 cornice scura, eliminando la prospettiva. È scritta in PHP puro con
